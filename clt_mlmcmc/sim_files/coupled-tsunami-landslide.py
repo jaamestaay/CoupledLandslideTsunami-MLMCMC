@@ -5,7 +5,7 @@ import os
 import sys 
 
 rusanov_fv = r"""
-  tests::exahype2::CoupledLandslideTsunami_MLMCMC::sim_files::LandslideTsunamiSolver s;
+  tests::exahype2::CoupledLandslideTsunami_MLMCMC::clt_mlmcmc::sim_files::LandslideTsunamiSolver s;
   s.flux(QL, x, h, t, dt, normal, FL);
   s.flux(QR, x, h, t, dt, normal, FR);
   const auto smax{std::fmax(s.maxEigenvalue(QL, x, h, t, dt, normal), s.maxEigenvalue(QR, x, h, t, dt, normal))};
@@ -69,7 +69,7 @@ stiff_source_term_fv = r"""
 """
 
 project = exahype2.Project(
-    namespace=["tests", "exahype2", "CoupledLandslideTsunami_MLMCMC", "sim_files"],
+    namespace=["tests", "exahype2", "CoupledLandslideTsunami_MLMCMC", "clt_mlmcmc", "sim_files"],
     project_name="CoupledLandslideTsunamis",
     directory=".",
     executable="CoupledLandslideTsunamis"
@@ -167,7 +167,7 @@ my_solver.plot_description = ", ".join(unknowns.keys())
 project.add_solver(my_solver)
 
 project.set_load_balancer(f"new ::exahype2::LoadBalancingConfiguration({args.load_balancing_quality}, 1, {args.trees_init}, {args.trees})")
-project.set_Peano4_installation("../../Peano", mode=peano4.output.string_to_mode(args.build_mode))
+project.set_Peano4_installation("../../../Peano", mode=peano4.output.string_to_mode(args.build_mode))
 project = project.generate_Peano4_project(verbose=False)
 for const_name, const_info in constants.items():
     const_val, const_type = const_info

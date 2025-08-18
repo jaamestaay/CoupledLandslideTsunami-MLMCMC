@@ -1,9 +1,8 @@
 import argparse
-import time
 import numpy as np
 
-from process_data import forward_model
-from umbridge_server import CoupledTsunamiLandslide
+from clt_mlmcmc.data.process_data import forward_model
+from clt_mlmcmc.classes.umbridge_server import CoupledTsunamiLandslide
 
 parser = argparse.ArgumentParser(description='Model output test.')
 args = parser.parse_args()
@@ -57,7 +56,7 @@ multilevel_config = {
     }
 }
 
-y_obs = np.loadtxt('observed_data_noise.csv', delimiter=',')
+y_obs = np.loadtxt('data/observed_data_noise.csv', delimiter=',')
 for i in range(3):
-    forward_model(theta, multilevel_config[i], model, 'h1u', True)
-    forward_model(theta, multilevel_config[i], model, 'h1u', False)
+    forward_model(theta, multilevel_config[i], model, 'h1u', True, folder='sim_files')
+    forward_model(theta, multilevel_config[i], model, 'h1u', False, folder='sim_files')

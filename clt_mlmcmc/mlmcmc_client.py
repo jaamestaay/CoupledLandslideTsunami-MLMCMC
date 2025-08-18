@@ -4,9 +4,9 @@ import numpy as np
 from collections import deque
 import time
 
-import distributions
-from process_data import forward_model
-from umbridge_server import CoupledTsunamiLandslide
+import clt_mlmcmc.classes.distributions as distributions
+from clt_mlmcmc.data.process_data import forward_model
+from clt_mlmcmc.classes.umbridge_server import CoupledTsunamiLandslide
 
 
 class MLMCMCSolver():
@@ -284,7 +284,7 @@ parser = argparse.ArgumentParser(description='Model output test.')
 args = parser.parse_args()
 # model = umbridge.HTTPModel(args.url, "CoupledTsunamiLandslide")
 model = CoupledTsunamiLandslide()
-y_obs = np.loadtxt("observed_data.csv", delimiter=',')
+y_obs = np.loadtxt("data/observed_data_noise.csv", delimiter=',')
 
 # needs tuning. best if i can make this completely automatically good,
 # but honesty that's going to be hard in the time frame i have lol

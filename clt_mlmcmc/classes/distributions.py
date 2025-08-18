@@ -3,28 +3,6 @@ import scipy as sp
 from abc import ABC, abstractmethod
 from numbers import Number
 
-# this will be needed if we need multidimensional (correlated) distributions
-# from collections.abc import Sequence
-# def islistlike(obj):
-#     return (isinstance(obj, Sequence) or isinstance(obj, np.ndarray)) and\
-#         not isinstance(obj, (str, bytes))
-
-
-# def check_covariance_matrix(sigma, tol=1e-10):
-#     """
-#     Check if sigma is a valid covariance matrix for a multivariate normal
-#     distribution.
-
-#     Returns:
-#         is_symmetric (bool): True if sigma is symmetric.
-#         is_pos_def (bool): True if sigma is positive definite.
-#         is_invertible (bool): True if sigma is invertible.
-#     """
-#     is_symmetric = np.allclose(sigma, sigma.T, atol=tol)
-#     eigenvalues = np.linalg.eigvalsh(sigma)
-#     is_pos_def = np.all(eigenvalues > tol)
-#     return is_symmetric, is_pos_def
-
 
 class Distribution(ABC):
     @abstractmethod

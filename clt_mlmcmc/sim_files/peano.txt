@@ -1,0 +1,1 @@
+bash -c "mkdir -p build.CoupledLandslideTsunamis && cd build.CoupledLandslideTsunamis && cmake .. && make  -j28 --jobserver-auth=3,4"

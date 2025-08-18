@@ -1,0 +1,1 @@
+constexpr double invXi = 0.004711738549867392;
