@@ -29,8 +29,9 @@ def parse_patch_block(patch_text, unknown=None):
         return offset, {variables[i]: values[i::n] for i in range(n)}
 
 
-def parse_patch_file(filename, unknown=None):
-    with open(filename, "r") as f:
+def parse_patch_file(filename, unknown=None, folder="sim_files"):
+    file = "./" + folder + "/" + filename
+    with open(file, "r") as f:
         contents = f.read()
     
     if "begin patch" not in contents:
@@ -54,16 +55,16 @@ def parse_patch_file(filename, unknown=None):
     return all_patches
 
 
-def parse_snapshot(files, unknown=None):
+def parse_snapshot(files, unknown=None, folder="sim_files"):
     full_snapshot = {}
     for file in files:
-        current_file = parse_patch_file(file, unknown=unknown)
+        current_file = parse_patch_file(file, unknown=unknown, folder=folder)
         # maybe it's worth checking for repeat offsets? but shouldn't be a problem
         full_snapshot |= current_file
     return full_snapshot
 
 
-def postprocessing(filename, snapshot='last', unknown=None):
+def postprocessing(filename, snapshot='last', unknown=None, folder="sim_files"):
     with open(filename, "r") as f:
         content = f.read()
 
@@ -82,7 +83,7 @@ def postprocessing(filename, snapshot='last', unknown=None):
     if not isinstance(snapshot, int) or snapshot > i:
         snapshot = i
 
-    data = parse_snapshot(files[snapshot], unknown=unknown)
+    data = parse_snapshot(files[snapshot], unknown=unknown, folder=folder)
     return process_coords(data, unknown=unknown)
 
 def process_coords(data, unknown=None):
@@ -100,7 +101,7 @@ def process_coords(data, unknown=None):
     processed = [vals[key] for _, vals in filtered_items for key in unknown]
     return np.concatenate(processed)
 
-def forward_model(parameters, config, model, unknown='h1u', original_call=True):
+def forward_model(parameters, config, model, unknown='h1u', original_call=True, folder="sim_files"):
     if unknown not in variables:
         raise ValueError(f"Unknown variable '{unknown}' is not supported. Choose from {variables}.")
     if isinstance(parameters, Number):
@@ -109,5 +110,5 @@ def forward_model(parameters, config, model, unknown='h1u', original_call=True):
         model.original_call([parameters], config)
     else:
         model([parameters], config)
-    return postprocessing("./solutions/solution-LandslideTsunamiSolver.peano-patch-file",
-                          snapshot='last', unknown=[unknown])
+    return postprocessing("./" + folder + "/solutions/solution-LandslideTsunamiSolver.peano-patch-file",
+                          snapshot='last', unknown=[unknown], folder=folder)

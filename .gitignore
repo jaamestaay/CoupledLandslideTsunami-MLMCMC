@@ -70,6 +70,10 @@ observers/TimeStep_10_exahype2_solvers_fv_actionsets_AdaptivityCriterion.cpp
 observers/TimeStep.cpp
 repositories/StepRepository.cpp
 CoupledLandslideTsunamis-main.cpp
+sim_files/params.cpp
+sim_files/peano.txt
+sim_files/Makefile
+sim_files/build.CoupledLandslideTsunamis
 
 
 
