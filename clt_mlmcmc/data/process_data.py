@@ -112,3 +112,41 @@ def forward_model(parameters, config, model, unknown='h1u', original_call=True, 
         model([parameters], config)
     return postprocessing("./" + folder + "/solutions/solution-LandslideTsunamiSolver.peano-patch-file",
                           snapshot='last', unknown=[unknown], folder=folder)
+
+def autocorrelation(data, lag):
+    """
+    Calculate autocorrelation of data at lag value.
+    """
+    if not lag:
+        return 1
+    elif lag < 0 or lag % 1:
+        raise ValueError("lag must be a non-negative integer.")
+    x_t = data[:-lag]
+    x_tn = data[lag:]
+    cov = np.cov(x_t, x_tn)[0]
+    return cov[1]/cov[0]
+
+def autocorrelation_data(data, total_lag):
+    """
+    Calculate autocorrelation data from lag=0 to lag=total_lag.
+    """
+    ac_values = [1]
+    for i in range(1, total_lag+1):
+        ac_values.append(autocorrelation(data, i))
+    return ac_values
+
+def ess(data, total_lag):
+    data = np.asarray(data, dtype=float)
+    n = data.size
+    if n < 3:
+        return float(n)
+    if total_lag is None:
+        total_lag = n - 2
+    s = 0.0
+    for k in range(1, total_lag + 1):
+        rk = autocorrelation(data, k)
+        if not np.isfinite(rk) or rk <= 0:
+            break
+        s += rk
+    tau = 1 + 2*s
+    return n / tau
