@@ -74,6 +74,7 @@ sim_files/params.cpp
 sim_files/peano.txt
 sim_files/Makefile
 sim_files/build.CoupledLandslideTsunamis
+__pycache__/
 
 
 
