@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from numbers import Number
 
 
+# Simple class structures for distributions used in the MLMCMC Solver.
 class Distribution(ABC):
     @abstractmethod
     def logpdf(self, x):
@@ -14,7 +15,6 @@ class Distribution(ABC):
     def sample(self, size):
         """Generate sample of the distribution of size 'size'."""
         pass
-
 
 
 class Uniform(Distribution):
@@ -32,8 +32,8 @@ class Uniform(Distribution):
             if lower.ndim != 1:
                 raise ValueError("Bounds must be 1-dimensional arrays.")
             if not np.all(lower < upper):
-                raise ValueError("Each lower bound must be strictly smaller than"
-                                "the corresponding upper bound.")
+                raise ValueError("Each lower bound must be strictly smaller "
+                                "than the corresponding upper bound.")
         self.lower = lower
         self.upper = upper
         self.dim = len(lower)

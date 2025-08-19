@@ -10,7 +10,26 @@ from clt_mlmcmc.classes.umbridge_server import CoupledTsunamiLandslide
 
 
 class MLMCMCSolver():
-    """Inverse Bayesian Inference Solution via MLMCMC, using """
+    """
+    Bayesian Inverse Problem Solution via MLMCMC, using Random Walk.
+    Initialisation:
+    model (CoupledTsunamiLandslide): the model to use for the forward
+        simulation.
+    multilevel_config (dict): contains the configuration for each level of the
+        multilevel MCMC. Each key is a level, and each value is a dict with
+        the following keys:
+            level (int): the level of the MCMC
+            samples (int): number of samples to take at this level
+            time-step-relaxation (float): between 0 and 1, for global adaptive
+                time steps
+            min-depth (int): minimum depth for the simulation
+            noise_std (float): standard deviation of the noise in the data
+            proposal_std (float): standard deviation of the proposal
+                distribution
+    data (np.ndarray): observed data to use for the likelihood.
+    unknown (str): name of the unknown variable in the forward model.
+    """
+
     def __init__(self, model, multilevel_config, data=None, unknown='h1u'):
         self.data = data
         self.configs = multilevel_config
@@ -20,6 +39,22 @@ class MLMCMCSolver():
         self.acceptance = [[] for _ in range(len(self.system))]
 
     def _config_system(self, config, data, model, unknown):
+        """
+        Set up system for MLMCMC level.
+        Input:
+        config (dict): contains resolution parameters for solver and chain
+        setup:
+            level (int): the level of the MCMC
+            samples (int): number of samples to take at this level
+            time-step-relaxation (float): between 0 and 1, for global adaptive
+                time steps
+            min-depth (int): minimum depth for the simulation
+            noise_std (float): standard deviation of the noise in the data
+            proposal_std (float): standard deviation of the proposal
+                distribution
+        data (np.ndarray): observed data to use for the likelihood.
+        model (CoupledTsunamiLandslide): the model to use for the forward.
+        """
         config_items = ['level', 'samples', 'time-step-relaxation',
                         'min-depth', 'noise_std', 'proposal_std']
         for item in config_items:
@@ -43,6 +78,16 @@ class MLMCMCSolver():
         }
 
     def generate_chain(self, level, start=None, subsampling=False):
+        """
+        Generate a chain for the given level.
+        Input:
+        level (int): the level of the MLMCMC to generate the chain for.
+        start (float or None): the starting point for the chain. If None,
+            the starting point will be sampled from the prior distribution.
+        subsampling (bool): whether to use subsampling or not. If True, the
+            chain will be generated using subsampling, otherwise it will be
+            generated using coupled random walk.
+        """
         if level not in range(len(self.system)):
             raise ValueError('level needs to be a non-negative integer '
                              f'smaller than {len(self.system)}.')
@@ -94,6 +139,15 @@ class MLMCMCSolver():
                 return chain_fine, chain_coarse, acceptances
         
     def generate_solution(self, start=None, subsampling=False):
+        """
+        Generate the solution for the MLMCMC.
+        Input:
+        start (float or None): the starting point for the chain. If None,
+            the starting point will be sampled from the prior distribution.
+        subsampling (bool): whether to use subsampling or not. If True, the
+            chain will be generated using subsampling, otherwise it will be
+            generated using coupled random walk. Used for multi-level chains.
+        """
         self.solution = 0
         for i in range(len(self.chains)):
             print(f"Level {i}")
@@ -106,16 +160,28 @@ class MLMCMCSolver():
         return self.chains, self.solution
 
     def _randomwalk(self, system, initial, subsampling=False):
-        print(initial)
+        """
+        Generate a random walk chain for the given system.
+        Input:
+        system (dict): the system to generate the chain for.
+        initial (float): the initial value for the chain.
+        subsampling (bool): whether to use subsampling or not. If True, the
+            chain will be generated using subsampling, otherwise it will be
+            generated using a simple random walk. Used for multi-level chains.
+        """
         n = system['samples']-1
         steps = system['proposal'].sample(size=n).flatten()
         rng = np.log(np.random.uniform(0, 1, size=n))
         markov_chain = [np.array(initial)]
         current = initial
         posterior = lambda x: system['prior'].logpdf(x) +\
-            system['likelihood'].logpdf(system['forward_model'](np.array([x]), False))
+            system['likelihood'].logpdf(system['forward_model'](
+                np.array([x]), False
+            ))
         current_posterior = system['prior'].logpdf(current) +\
-            system['likelihood'].logpdf(system['forward_model'](np.array([current]), True))
+            system['likelihood'].logpdf(system['forward_model'](
+                np.array([current]), True
+            ))
         acceptance = 1
         if subsampling:
             posteriors = [current_posterior]
@@ -139,7 +205,16 @@ class MLMCMCSolver():
         return np.array(markov_chain).flatten(), acceptance/(n+1)
 
     def _coupledrandomwalk(self, system_fine, system_coarse, initial):
-        print(initial)
+        """
+        Generate a pair of coupled random walk chains for the given system,
+        where both chains step the same amount at each step.
+        Input:
+        system (dict): the system to generate the (fine) chain for.
+        initial (float): the initial value for the (fine) chain.
+        subsampling (bool): whether to use subsampling or not. If True, the
+            chain will be generated using subsampling, otherwise it will be
+            generated using a simple random walk. Used for multi-level chains.
+        """
         n = system_fine['samples'] - 1
         steps = system_fine['proposal'].sample(size=n).flatten()
         rng = np.log(np.random.uniform(0, 1, size=n))
@@ -147,7 +222,8 @@ class MLMCMCSolver():
         chain = [[initial], [initial]]
         current = np.array([initial, initial])
         posterior = lambda x: np.array([
-            system_fine['prior'].logpdf(x[0]) + system_fine['likelihood'].logpdf(
+            system_fine['prior'].logpdf(x[0]) +
+            system_fine['likelihood'].logpdf(
                 system_fine['forward_model'](np.array([x[0]]), False)
             ),
             system_coarse['prior'].logpdf(x[1]) +
@@ -156,12 +232,17 @@ class MLMCMCSolver():
             )
         ])
         current_posterior = np.array([
-            system_fine['prior'].logpdf(current[0]) + system_fine['likelihood'].logpdf(
-                system_fine['forward_model'].original_call(np.array([current[0]]), True)
+            system_fine['prior'].logpdf(current[0]) +
+            system_fine['likelihood'].logpdf(
+                system_fine['forward_model'].original_call(
+                    np.array([current[0]]), True
+                )
             ),
             system_coarse['prior'].logpdf(current[1]) +
             system_coarse['likelihood'].logpdf(
-                system_coarse['forward_model'].original_call(np.asarray([current[1]]), True)
+                system_coarse['forward_model'].original_call(
+                    np.asarray([current[1]]), True
+                )
             )
         ])
         acceptance = [0, 0]
@@ -185,7 +266,17 @@ class MLMCMCSolver():
 
     def _subsampledrandomwalk(self, system, coarse_chain,
                               coarse_posterior, initial):
-        print(initial)
+        """
+        Generate a pair of coupled random walk chains for the given system,
+        where the coarse chain is subsampled from the fine chain of the
+        previous chain.
+        Input:
+        system (dict): the system to generate the (fine) chain for.
+        coarse_chain (np.ndarray): the coarse chain from the previous level.
+        coarse_posterior (np.ndarray): the posterior of the coarse chain from
+            the previous level.
+        initial (float): the initial value for the (fine) chain.
+        """
         n = system['samples'] - 1
         steps = system['proposal'].sample(size=n).flatten()
         rng = np.log(np.random.uniform(0, 1, size=n))
@@ -234,6 +325,9 @@ class MLMCMCSolver():
         ]
 
     def save_data(self, filename='MLMCMC_samples.csv'):
+        """
+        Save data from all chains into one csv file.
+        """
         for level in range(len(self.chains)):
             if not level:
                 if not len(self.chains[level]):
@@ -242,15 +336,17 @@ class MLMCMCSolver():
             else:
                 if not (len(self.chains[level][0])
                         or len(self.chains[level][1])):
-                    raise ValueError(f"Chain {level} has not been generated yet.")
+                    raise ValueError(f"Chain {level} has not been generated "
+                                     "yet.")
                 data = np.concatenate([data, self.chains[level][0],
                                     self.chains[level][1]])
         np.savetxt(filename, data, delimiter=',')
     
     def _ess(self, chain):
         """
-        Effective Sample Size for a 1D MCMC chain.
-        Chain: 1D NumPy array of length N.
+        Effective Sample Size for a 1D chain.
+        Input:
+        chain (np.ndarray): the chain to calculate the ESS for.
         """
         x = np.asarray(chain)
         N = len(x)
@@ -269,26 +365,29 @@ class MLMCMCSolver():
         return ess_val
 
     def effective_sample_size(self):
+        """
+        Calculate the effective sample size for each level of the MLMCMC.
+        Returns:
+        ess (list): a list of effective sample sizes for each level.
+        """
+        ess = []
         for i in range(len(self.system)):
             print(f"LEVEL {i}:")
             if i:
-                print(f"FINE: {self._ess(self.chains[i][0])}")
-                print(f"COARSE: {self._ess(self.chains[i][1])}")
+                fine = self._ess(self.chains[i][0])
+                coarse = self._ess(self.chains[i][1])
+                ess.append([fine, coarse])
             else:
-                print(self._ess(self.chains[0]))
+                ess.append(self._ess(self.chains[i]))
+        return ess
 
 parser = argparse.ArgumentParser(description='Model output test.')
-# parser.add_argument('--url', metavar='url', type=str,
-#                     help='the URL on which the model is running, '
-#                     'for example http://localhost:4242')
 args = parser.parse_args()
-# model = umbridge.HTTPModel(args.url, "CoupledTsunamiLandslide")
 model = CoupledTsunamiLandslide()
 y_obs = np.loadtxt("data/observed_data_noise.csv", delimiter=',')
 
-# needs tuning. best if i can make this completely automatically good,
-# but honesty that's going to be hard in the time frame i have lol
-rate = 4
+# Improvement Area: Automation of 'noise_std', 'proposal_std' and 'samples' for
+# optimisation wrt computational resources.
 multilevel_config = {
     0: {
         'level': 0,
@@ -296,7 +395,7 @@ multilevel_config = {
         'time-step-relaxation': 0.7,
         'min-depth': 3,
         'noise_std': 3,
-        'proposal_std': 0.00123*rate
+        'proposal_std': 0.00492
     },
     1: {
         'level': 1,
@@ -304,7 +403,7 @@ multilevel_config = {
         'time-step-relaxation': 0.45,
         'min-depth': 3,
         'noise_std': 2,
-        'proposal_std': 0.001*rate
+        'proposal_std': 0.004
     },
     2: {
         'level': 2,
@@ -312,19 +411,9 @@ multilevel_config = {
         'time-step-relaxation': 0.45,
         'min-depth': 4,
         'noise_std': 0.8,
-        'proposal_std': 0.0006*rate
+        'proposal_std': 0.0024
     }
 }
-# multilevel_config = {
-#     0: {
-#         'level': 2,
-#         'samples': 3000,
-#         'time-step-relaxation': 0.45,
-#         'min-depth': 4,
-#         'noise_std': 0.8,
-#         'proposal_std': 0.0006
-#     }
-# }
 
 start = time.time()
 solver = MLMCMCSolver(model, multilevel_config, y_obs)

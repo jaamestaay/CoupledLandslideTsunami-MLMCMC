@@ -75,6 +75,8 @@ sim_files/peano.txt
 sim_files/Makefile
 sim_files/build.CoupledLandslideTsunamis
 __pycache__/
+clt_mlmcmc.egg_info/
+graph.ipynb
 
 
 

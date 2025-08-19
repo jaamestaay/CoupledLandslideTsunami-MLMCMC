@@ -7,8 +7,21 @@ n = len(variables)
 
 
 def parse_patch_block(patch_text, unknown=None):
-    offset_match = re.search(r"offset\s+([0-9.eE+-]+)\s+([0-9.eE+-]+)", patch_text)
-    values_match = re.search(r'begin cell-values\s+".*?"\s+(.*?)\s+end cell-values', patch_text, re.DOTALL)
+    """
+    Parse a single patch block from a Peano patch file.
+
+    Input:
+    patch_text (str): the text of the patch block to parse.
+    unknown (list): list of variables to extract from the patch block.
+        If None, all variables will be extracted.
+    """
+    offset_match = re.search(
+        r"offset\s+([0-9.eE+-]+)\s+([0-9.eE+-]+)", patch_text
+    )
+    values_match = re.search(
+        r'begin cell-values\s+".*?"\s+(.*?)\s+end cell-values',
+        patch_text, re.DOTALL
+    )
     if not offset_match or not values_match:
         return None
 
@@ -17,7 +30,6 @@ def parse_patch_block(patch_text, unknown=None):
     values = list(map(float, values_str.strip().split()))
     if len(values) % len(variables) != 0:
         raise ValueError("Check formatting.")
-    
     
     if not unknown:
         values = dict()
@@ -30,6 +42,14 @@ def parse_patch_block(patch_text, unknown=None):
 
 
 def parse_patch_file(filename, unknown=None, folder="sim_files"):
+    """
+    Parse a Peano patch file.
+    Input:
+    filename (str): the name of the file to parse.
+    unknown (list): list of variables to extract from the patch file.
+        If None, all variables will be extracted.
+    folder (str): the folder where the file is located.
+    """
     file = "./" + folder + "/" + filename
     with open(file, "r") as f:
         contents = f.read()
@@ -56,15 +76,37 @@ def parse_patch_file(filename, unknown=None, folder="sim_files"):
 
 
 def parse_snapshot(files, unknown=None, folder="sim_files"):
+    """
+    Parse a snapshot of multiple patches from a Peano patch file.
+
+    Input:
+    files (list): list of filenames to parse.
+    unknown (list): list of variables to extract from the patch file.
+        If None, all variables will be extracted.
+    folder (str): the folder where the files are located.
+    """
     full_snapshot = {}
     for file in files:
         current_file = parse_patch_file(file, unknown=unknown, folder=folder)
-        # maybe it's worth checking for repeat offsets? but shouldn't be a problem
+        # Could be done more efficiently and to check for duplicates.
         full_snapshot |= current_file
     return full_snapshot
 
 
-def postprocessing(filename, snapshot='last', unknown=None, folder="sim_files"):
+def postprocessing(filename, snapshot='last', unknown=None,
+                   folder="sim_files"):
+    """
+    Postprocess the Peano patch file to extract data.
+    Input:
+    filename (str): the name of the file to postprocess.
+    snapshot (str or int): the snapshot to extract data from.
+        If 'last', the last snapshot will be used.
+        If an integer smaller than the total number of snapshots, the nth
+            snapshot will be used.
+    unknown (list): list of variables to extract from the patch file.
+        If None, all variables will be extracted.
+    folder (str): the folder where the file is located.
+    """
     with open(filename, "r") as f:
         content = f.read()
 
@@ -87,13 +129,22 @@ def postprocessing(filename, snapshot='last', unknown=None, folder="sim_files"):
     return process_coords(data, unknown=unknown)
 
 def process_coords(data, unknown=None):
+    """
+    Process the coordinates and values from the parsed data.
+    Assumes data comes of size 9 or 81 (min-depth 3 or 4).
+    Input:
+    data (dict): dictionary of coordinates and values.
+    unknown (list): list of variables to extract from the patch file.
+        If None, all variables will be extracted.
+    """
     sorted_data = sorted(data.items(), key = lambda x: (x[0][1], x[0][0]))
     coords = [item[0] for item in sorted_data]
     if len(coords) == 81:
-        # might need to change how this works depending on how i get my data
         grid = np.array(coords).reshape((9, 9, 2))
-        selected_coords = [tuple(grid[i, j]) for i in [1, 4, 7] for j in [1, 4, 7]]
-        filtered_items = [(k, v) for k, v in sorted_data if k in selected_coords]
+        selected_coords = [tuple(grid[i, j])
+                           for i in [1, 4, 7]for j in [1, 4, 7]]
+        filtered_items = [(k, v) for k, v in sorted_data
+                          if k in selected_coords]
     elif len(coords) == 9:
         filtered_items = sorted_data
     else:
@@ -101,52 +152,33 @@ def process_coords(data, unknown=None):
     processed = [vals[key] for _, vals in filtered_items for key in unknown]
     return np.concatenate(processed)
 
-def forward_model(parameters, config, model, unknown='h1u', original_call=True, folder="sim_files"):
+def forward_model(parameters, config, model, unknown='h1u', original_call=True,
+                  folder="sim_files"):
+    """
+    Run the forward model with the given parameters and configuration.
+    Input:
+    parameters (list): contains a list of parameters in this order:
+        index 0: friction
+        More can be included as needed, but other files need to be tweaked
+            as well.
+    config (dict): contains resolution parameters for solver.
+    model (CoupledTsunamiLandslide): the model to run.
+    unknown (str): the variable to extract from the output.
+    original_call (bool): whether this is the first call of the model (which
+        will require a rebuilding of the model) or not. 
+    folder (str): the folder where the all simulation files are stored.
+    """
     if unknown not in variables:
-        raise ValueError(f"Unknown variable '{unknown}' is not supported. Choose from {variables}.")
+        raise ValueError(f"Unknown variable '{unknown}' is not supported. "
+                         f"Choose from {variables}.")
     if isinstance(parameters, Number):
         parameters = [parameters]
     if original_call:
         model.original_call([parameters], config)
     else:
         model([parameters], config)
-    return postprocessing("./" + folder + "/solutions/solution-LandslideTsunamiSolver.peano-patch-file",
-                          snapshot='last', unknown=[unknown], folder=folder)
-
-def autocorrelation(data, lag):
-    """
-    Calculate autocorrelation of data at lag value.
-    """
-    if not lag:
-        return 1
-    elif lag < 0 or lag % 1:
-        raise ValueError("lag must be a non-negative integer.")
-    x_t = data[:-lag]
-    x_tn = data[lag:]
-    cov = np.cov(x_t, x_tn)[0]
-    return cov[1]/cov[0]
-
-def autocorrelation_data(data, total_lag):
-    """
-    Calculate autocorrelation data from lag=0 to lag=total_lag.
-    """
-    ac_values = [1]
-    for i in range(1, total_lag+1):
-        ac_values.append(autocorrelation(data, i))
-    return ac_values
-
-def ess(data, total_lag):
-    data = np.asarray(data, dtype=float)
-    n = data.size
-    if n < 3:
-        return float(n)
-    if total_lag is None:
-        total_lag = n - 2
-    s = 0.0
-    for k in range(1, total_lag + 1):
-        rk = autocorrelation(data, k)
-        if not np.isfinite(rk) or rk <= 0:
-            break
-        s += rk
-    tau = 1 + 2*s
-    return n / tau
+    return postprocessing(
+        "./" + folder +
+        "/solutions/solution-LandslideTsunamiSolver.peano-patch-file",
+        snapshot='last', unknown=[unknown], folder=folder
+)
